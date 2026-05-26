@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const registerUser = async (req, res) => {
     try{
@@ -22,18 +23,71 @@ const registerUser = async (req, res) => {
             email,
             password: hashedPassword,
         });
-
-        res.status(201).json({
+        let returndata = user.name;
+        return res.status(201).json({
             message: "User registered succesfully",
-            user,
+            returndata,
         });
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             message: error.message,
         });
     }
 }
 
+const loginUser = async (req, res) => {
+    const { email, password } = req.body;
+    let existingUser;
+
+    try {
+        existingUser = await User.findOne({ email: email});
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message,
+        });
+    }
+
+    const isPasswordCorrect = existingUser 
+        ? await bcrypt.compare(password, existingUser.password) 
+        : false;
+
+    if (!existingUser || !isPasswordCorrect) {
+        return res.status(401).json({
+            message: "Invalid Password or Username",
+        });
+    }
+
+    
+    try{
+        const payLoad = {
+            id: existingUser.id,
+            email: existingUser.email,
+            name: existingUser.name,
+        };
+
+        const token = jwt.sign(
+            payLoad,
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRES_IN || '1h'}
+        );
+        let returnData = existingUser.name;
+        return res.status(200).json({
+            message: "Login successful.",
+            token: token,
+            user: returnData,
+        });
+
+
+
+    }catch (error) {
+        return res.status(500).json({
+            message: error.message,
+        });
+        
+    }
+}
+
 module.exports = {
     registerUser,
+    loginUser,
 };
